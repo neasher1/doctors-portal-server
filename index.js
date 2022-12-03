@@ -3,6 +3,8 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const port = process.env.PORT || 5000;
+const nodemailer = require("nodemailer");
+const mg = require('nodemailer-mailgun-transport');
 require('dotenv').config();
 const stripe = require("stripe")(process.env.REACT_STRIPE_SECRET_KEY);
 
@@ -25,6 +27,43 @@ const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology:
     * app.patch('/bookings/:id')
     * app.delete('/bookings/:id')
 */
+
+//send email to client booking appointment confirmation
+function sendBookingEmail(booking) {
+    const { email, treatment, appointmentDate, slot } = booking;
+
+    const auth = {
+        auth: {
+            api_key: process.env.SEND_EMAIL_API_KEY,
+            domain: process.env.SEND_EMAIL_DOMAIN
+        }
+    }
+
+    const transporter = nodemailer.createTransport(mg(auth));
+
+    transporter.sendMail({
+        from: "neasherahmed7@gmail.com", // verified sender email
+        to: email || 'neasherahmed7@gmail.com', // recipient email
+        subject: `Your appointment for ${treatment} is confirmed`, // Subject line
+        text: "Hello world!", // plain text body
+        html: `
+            <h3>Your appointment is confirmed</h3>
+            <div>
+                <p>Your appointment is confirmed for ${treatment}</p>
+                <p>Please visit us on ${appointmentDate} at ${slot}</p>
+                <p>Thanks from Doctors Portal</p>
+            </div>
+        
+        `, // html body
+    }, function (error, info) {
+        if (error) {
+            console.log(error);
+        } else {
+            console.log('Email sent: ' + info.response);
+        }
+    });
+
+}
 
 const verifyJWT = async (req, res, next) => {
     const authHeader = req.headers.authorization;
@@ -123,6 +162,10 @@ async function run() {
             }
 
             const result = await bookingsCollection.insertOne(booking);
+
+            //send email about booking appointment confirmation
+            sendBookingEmail(booking);
+
             res.send(result);
         });
 
